@@ -1,8 +1,11 @@
- module.exports.config = {
+const fs = require("fs-extra");
+const request = require("request");
+
+module.exports.config = {
 	name: "help",
 	version: "1.0.2",
 	hasPermssion: 0,
-	credits: "𝐏𝐫𝐢𝐲𝐚𝐧𝐬𝐡 𝐑𝐚𝐣𝐩𝐮𝐭",
+	credits: "NM Nerob", // Changed credit here
 	description: "Beginner's Guide",
 	commandCategory: "system",
 	usages: "[Tên module]",
@@ -14,13 +17,6 @@
 };
 
 module.exports.languages = {
-	//"vi": {
-	//	"moduleInfo": "「 %1 」\n%2\n\n❯ Cách sử dụng: %3\n❯ Thuộc nhóm: %4\n❯ Thời gian chờ: %5 giây(s)\n❯ Quyền hạn: %6\n\n» Module code by %7 «",
-	//	"helpList": '[ Hiện tại đang có %1 lệnh có thể sử dụng trên bot này, Sử dụng: "%2help nameCommand" để xem chi tiết cách sử dụng! ]"',
-	//	"user": "Người dùng",
-  //      "adminGroup": "Quản trị viên nhóm",
-  //      "adminBot": "Quản trị viên bot"
-//	},
 	"en": {
 		"moduleInfo": "「 %1 」\n%2\n\n❯ Usage: %3\n❯ Category: %4\n❯ Waiting time: %5 seconds(s)\n❯ Permission: %6\n\n» Module code by %7 «",
 		"helpList": '[ There are %1 commands on this bot, Use: "%2help nameCommand" to know how to use! ]',
@@ -30,7 +26,17 @@ module.exports.languages = {
 	}
 };
 
-module.exports.handleEvent = function ({ api, event, getText }) {
+async function getProfilePic() {
+  return new Promise((resolve, reject) => {
+    const path = __dirname + "/cache/nerob_help.png";
+    request("https://graph.facebook.com/100056625290989/picture?height=720&width=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662")
+      .pipe(fs.createWriteStream(path))
+      .on("close", () => resolve(path))
+      .on("error", err => reject(err));
+  });
+}
+
+module.exports.handleEvent = async function ({ api, event, getText }) {
 	const { commands } = global.client;
 	const { threadID, messageID, body } = event;
 
@@ -40,10 +46,20 @@ module.exports.handleEvent = function ({ api, event, getText }) {
 	const threadSetting = global.data.threadData.get(parseInt(threadID)) || {};
 	const command = commands.get(splitBody[1].toLowerCase());
 	const prefix = (threadSetting.hasOwnProperty("PREFIX")) ? threadSetting.PREFIX : global.config.PREFIX;
-	return api.sendMessage(getText("moduleInfo", command.config.name, command.config.description, `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`, command.config.commandCategory, command.config.cooldowns, ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")), command.config.credits), threadID, messageID);
+  
+  try {
+    const imgPath = await getProfilePic();
+    await api.sendMessage({
+      body: getText("moduleInfo", command.config.name, command.config.description, `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`, command.config.commandCategory, command.config.cooldowns, ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")), command.config.credits),
+      attachment: fs.createReadStream(imgPath)
+    }, threadID, () => fs.unlinkSync(imgPath), messageID);
+  } catch (e) {
+    // fallback without image
+    return api.sendMessage(getText("moduleInfo", command.config.name, command.config.description, `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`, command.config.commandCategory, command.config.cooldowns, ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")), command.config.credits), threadID, messageID);
+  }
 }
 
-module.exports. run = function({ api, event, args, getText }) {
+module.exports.run = async function({ api, event, args, getText }) {
 	const { commands } = global.client;
 	const { threadID, messageID } = event;
 	const command = commands.get((args[0] || "").toLowerCase());
@@ -55,7 +71,6 @@ module.exports. run = function({ api, event, args, getText }) {
 		const arrayInfo = [];
 		const page = parseInt(args[0]) || 1;
     const numberOfOnePage = 10;
-    //*số thứ tự 1 2 3.....cú pháp ${++i}*//
     let i = 0;
     let msg = "";
     
@@ -72,17 +87,30 @@ module.exports. run = function({ api, event, args, getText }) {
     
     for (let item of returnArray) msg += `「 ${++i} 」${prefix}${item}\n`;
     
-    
     const siu = `Command list 📄\ntype /help (command name) ✨\n󰂆 󰟯 󰟰 󰟷 󰟺 󰟵 󰟫`;
-    
- const text = `\nPage (${page}/${Math.ceil(arrayInfo.length/numberOfOnePage)})\n`;
- 
-    return api.sendMessage(siu + "\n\n" + msg  + text, threadID, async (error, info) => {
-			if (autoUnsend) {
-				await new Promise(resolve => setTimeout(resolve, delayUnsend * 1000));
-				return api.unsendMessage(info.messageID);
-			} else return;
-		}, event.messageID);
+    const text = `\nPage (${page}/${Math.ceil(arrayInfo.length/numberOfOnePage)})\n`;
+
+    try {
+      const imgPath = await getProfilePic();
+      return api.sendMessage({
+        body: siu + "\n\n" + msg + text,
+        attachment: fs.createReadStream(imgPath)
+      }, threadID, async (error, info) => {
+        if (autoUnsend) {
+          await new Promise(resolve => setTimeout(resolve, delayUnsend * 1000));
+          api.unsendMessage(info.messageID);
+        }
+        fs.unlinkSync(imgPath);
+      }, messageID);
+    } catch (e) {
+      // fallback without image
+      return api.sendMessage(siu + "\n\n" + msg + text, threadID, async (error, info) => {
+        if (autoUnsend) {
+          await new Promise(resolve => setTimeout(resolve, delayUnsend * 1000));
+          api.unsendMessage(info.messageID);
+        }
+      }, messageID);
+    }
 	}
 
 	return api.sendMessage(getText("moduleInfo", command.config.name, command.config.description, `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`, command.config.commandCategory, command.config.cooldowns, ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")), command.config.credits), threadID, messageID);
