@@ -44,10 +44,10 @@ module.exports = {
 async function generateGayImage(uid1, uid2) {
   // Random gay-themed base image
   const templates = [
-    "https://postimg.cc/D8pdvD1P",
-    "https://postimg.cc/vgvfpSQ9",
-    "https://postimg.cc/RqRL8qF8"
-  ];
+  "https://postimg.cc/D8pdvD1P",
+  "https://postimg.cc/vgvfpSQ9",
+  "https://postimg.cc/RqRL8qF8"
+];
   const randomTemplateURL = templates[Math.floor(Math.random() * templates.length)];
 
   // Load avatars
